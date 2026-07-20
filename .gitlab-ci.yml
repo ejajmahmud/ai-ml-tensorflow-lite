@@ -1,0 +1,40 @@
+image: osrf/ros:foxy-desktop
+
+variables:
+  GIT_CLONE_PATH: $CI_BUILDS_DIR/src/ros2_tflite
+
+build:
+  stage: build
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
+  script:
+    - mkdir build
+    - mkdir install
+    - cd ${CI_BUILDS_DIR}
+    - apt update
+    - rosdep update && rosdep install --from-paths src -r -y
+    # Link artifact directories so they can be uploaded
+    - ln -s src/ros2_tflite/build build
+    - ln -s src/ros2_tflite/install install
+    # Test downloading example models
+    - src/ros2_tflite/tflite_example/download_models.sh
+    # Build
+    - colcon build --cmake-args -DCMAKE_BUILD_TYPE=Debug --packages-up-to tflite tflite_util tflite_example
+  artifacts:
+    paths:
+      - build/
+      - install/
+    expire_in: 10 mins
+
+test:
+  stage: test
+  script:
+    - cd $CI_BUILDS_DIR
+    - ln -s src/ros2_tflite/build build
+    - ln -s src/ros2_tflite/install install
+    - colcon test --event-handlers console_cohesion+ --return-code-on-test-failure --packages-select tflite tflite_util tflite_example
+  artifacts:
+    reports:
+      junit:
+      - build/tflite/test_results/tflite/*.xunit.xml
+      - build/tflite_util/test_results/tflite_util/*.xunit.xml
